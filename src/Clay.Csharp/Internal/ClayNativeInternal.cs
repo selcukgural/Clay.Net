@@ -7,6 +7,8 @@ internal static partial class ClayNativeInternal
 {
     private const string ClayDll = "clay_native";
 
+    static ClayNativeInternal() => ClayNativeLibraryResolver.EnsureRegistered();
+
     [LibraryImport(ClayDll, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial IntPtr ClayNative_GetVersion();
 
@@ -18,6 +20,10 @@ internal static partial class ClayNativeInternal
 
     [LibraryImport(ClayDll)]
     internal static partial int ClayNative_GetVersionPatch();
+
+    /// <summary>Real, compiler-computed sizeof(...) for every bound Clay_* struct - see ClayNativeAbiSizes.</summary>
+    [LibraryImport(ClayDll)]
+    internal static partial ClayNativeAbiSizes ClayNative_GetAbiSizes();
 
     // ========================================
     // MEMORY MANAGEMENT

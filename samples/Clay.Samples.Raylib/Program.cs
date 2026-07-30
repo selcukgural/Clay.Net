@@ -54,6 +54,11 @@ while (!window.ShouldClose)
                            ? ClayHelpers.CreateColor(120, 160, 240)
                            : ClayHelpers.CreateColor(80, 120, 200),
                        cornerRadius = ClayHelpers.CreateCornerRadius(12),
+                       border = new ClayBorderElementConfig
+                       {
+                           color = ClayHelpers.CreateColor(255, 255, 255),
+                           width = new ClayBorderWidth { left = 4, right = 4, top = 4, bottom = 4 },
+                       },
                    }))
             {
                 Layout.Text(ClayNative.Clay_Hovered() ? "Hovering!" : "Hover me", new ClayTextElementConfig

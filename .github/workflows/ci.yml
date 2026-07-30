@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: build & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Clay.Net.sln
+
+      # Only macos-latest (Apple Silicon, matching the only prebuilt clay_native RID we ship today - see
+      # README's Platform support table) has a native library to test against. Other platforms still get
+      # full coverage of every test that doesn't need it (struct/enum ABI, helpers, pure-logic renderer
+      # geometry) - see the RequiresNative trait on Tier 2 tests in tests/Clay.Csharp.Tests.
+      - name: Test (native-independent)
+        if: runner.os != 'macOS'
+        run: dotnet test Clay.Net.sln --filter "RequiresNative!=true"
+
+      - name: Test (all)
+        if: runner.os == 'macOS'
+        run: dotnet test Clay.Net.sln
+
+  native-build:
+    name: native build check (${{ matrix.os }})
+    # Compile-only sanity check for native/clay_native on platforms we don't have a prebuilt binary for
+    # yet - in particular this is the first place the Windows DLL-export fix (WINDOWS_EXPORT_ALL_SYMBOLS
+    # in CMakeLists.txt) gets verified against a real Windows toolchain. Does not publish/replace the
+    # prebuilt binaries under native/clay_native/prebuilt/ - that remains a manual step until this
+    # produces artifacts worth trusting as prebuilts.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B native/clay_native/cmake-build -S native/clay_native
+
+      - name: Build
+        run: cmake --build native/clay_native/cmake-build --config Release

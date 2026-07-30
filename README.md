@@ -21,6 +21,10 @@ src/Clay.Csharp/             Core C# bindings: structs/enums matching clay.h's A
 src/Clay.Csharp.Raylib/      Optional renderer: translates Clay's render commands into raylib draw
                               calls, plus a batteries-included window+frame-loop wrapper.
 samples/Clay.Samples.Raylib/ A small runnable example using the raylib renderer.
+tests/Clay.Csharp.Tests/     Struct/enum ABI tests, ClayHelpers/declarative-API unit tests, and native
+                              integration tests (real layout computation, hover, transitions).
+tests/Clay.Csharp.Raylib.Tests/ Pure-logic tests for the renderer (color conversion, font fallback,
+                              border geometry) - no raylib window/GL context required.
 ```
 
 Why is the native C project separate from `src/`? It isn't C# code, and it's a build *input* to
@@ -39,6 +43,24 @@ dotnet run --project samples/Clay.Samples.Raylib
 That's it - no manual native library build or copy step required on **macOS (Apple Silicon)**, since a
 prebuilt `clay_native` binary for that platform is bundled and copied to your output directory
 automatically (see [Platform support](#platform-support) below).
+
+## Testing
+
+```sh
+dotnet test Clay.Net.sln
+```
+
+Tests are split into two tiers (see `tests/Clay.Csharp.Tests`):
+- **Struct/enum ABI + helper/declarative-API tests** run on every OS unconditionally, no native library
+  required - this is what would have (and, during development, did) caught byte-layout bugs like a
+  struct carrying a field that doesn't exist in `clay.h`.
+- **Native integration tests** (real layout computation, hover, transitions, error reporting) are tagged
+  `[Trait("RequiresNative", "true")]` and need the real `clay_native` binary for your platform - run
+  everything with a plain `dotnet test`, or exclude them with `dotnet test --filter "RequiresNative!=true"`
+  on a platform without a prebuilt binary yet (see [Platform support](#platform-support)).
+
+CI (`.github/workflows/ci.yml`) runs the full suite on macOS, and the native-independent tier on Linux
+and Windows.
 
 ## A minimal example
 
@@ -124,18 +146,25 @@ has been audited field-by-field against `native/clay_native/third_party/clay/cla
 (notably: C's 1-byte `bool` must be marshaled as `UnmanagedType.I1`, not the default 4-byte
 `UnmanagedType.Bool`; Clay's `CLAY_PACKED_ENUM`s are 1-byte and map to C# `enum : byte`, but a couple
 of enums - `Clay_TransitionState`, `Clay_TransitionProperty` - are deliberately *not* packed and stay
-at the default 4-byte size).
+at the default 4-byte size), and every struct's `Marshal.SizeOf<T>()` is cross-checked in tests against
+the real, compiler-computed native size (`ClayNative_GetAbiSizes` in `native/clay_native`) rather than
+trusting hand-derived constants alone - see [Testing](#testing).
 
 ## Status
 
-- Struct/enum ABI: complete, audited against upstream `clay.h`.
+- Struct/enum ABI: complete, audited against upstream `clay.h`, covered by tests (both hand-derived and
+  native-verified - see [Testing](#testing)).
 - P/Invoke surface (`Clay.Csharp.Internal.ClayNativeInternal`) and public facade (`ClayNative`): complete.
 - Declarative element API, per-frame text/id string arena, transition callback marshaling,
   `Clay_OnHover`: implemented and verified against the real native library.
-- Raylib renderer: rectangles, text, borders, scissor/clip - working. Images, custom render commands,
-  and color-overlay transitions are not wired up yet (see `ClayRaylibRenderer.Render`).
+- Raylib renderer: rectangles, text, borders (including corner-radius-aware borders), scissor/clip -
+  working. Images, custom render commands, and color-overlay transitions are not wired up yet (see
+  `ClayRaylibRenderer.Render`).
 - Only one renderer (raylib) exists so far; SDL2/SDL3/etc. would follow the same pattern as
   `src/Clay.Csharp.Raylib` as separate, optional packages.
+- No prebuilt native binaries yet for macOS x64, Linux, or Windows - see
+  [Platform support](#platform-support). CI has a compile-only check for `native/clay_native` on Linux
+  and Windows, but doesn't yet produce prebuilt binaries from it.
 
 ## Credits & license
 

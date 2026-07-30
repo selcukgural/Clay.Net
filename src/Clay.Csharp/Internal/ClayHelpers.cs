@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Clay.Csharp.Structs;
 
 namespace Clay.Csharp.Internal;
@@ -9,7 +10,10 @@ namespace Clay.Csharp.Internal;
 public static class ClayHelpers
 {
     /// <summary>
-    /// Creates a Clay_String from a .NET string (stores as static reference, use with caution for long-lived strings)
+    /// Creates a Clay_String from a .NET string, encoded as UTF-8 in unmanaged memory (caller-owned - use
+    /// with caution for long-lived strings, and free with Marshal.FreeHGlobal(chars) when done). For
+    /// strings handed to Clay during layout declaration, prefer Clay.Csharp.Declarative.Layout, which
+    /// manages string lifetime for you via a per-frame arena.
     /// </summary>
     public static ClayString CreateClayString(string text)
     {
@@ -17,24 +21,33 @@ public static class ClayHelpers
         {
             return new ClayString { isStaticallyAllocated = false, length = 0, chars = IntPtr.Zero };
         }
-        
-        IntPtr unmanagedString = Marshal.StringToHGlobalAnsi(text);
+
+        int byteCount = Encoding.UTF8.GetByteCount(text);
+        IntPtr unmanagedString = Marshal.AllocHGlobal(byteCount);
+        unsafe
+        {
+            fixed (char* textPtr = text)
+            {
+                Encoding.UTF8.GetBytes(textPtr, text.Length, (byte*)unmanagedString, byteCount);
+            }
+        }
+
         return new ClayString
         {
             isStaticallyAllocated = false,
-            length = text.Length,
+            length = byteCount,
             chars = unmanagedString
         };
     }
 
     /// <summary>
-    /// Converts a Clay_String to a .NET string
+    /// Converts a Clay_String to a .NET string (assumes UTF-8 encoded bytes, matching CreateClayString).
     /// </summary>
     public static string ClayStringToManaged(ClayString clayString)
     {
         return clayString.chars == IntPtr.Zero || clayString.length == 0
                    ? string.Empty
-                   : Marshal.PtrToStringAnsi(clayString.chars, clayString.length);
+                   : Marshal.PtrToStringUTF8(clayString.chars, clayString.length);
     }
 
     /// <summary>
@@ -61,7 +74,7 @@ public static class ClayHelpers
             throw new IndexOutOfRangeException("Element ID index out of range");
         }
 
-        IntPtr elementPtr = Marshal.ReadIntPtr(new IntPtr(array.internalArray.ToInt64() + index * Marshal.SizeOf<ClayElementId>()));
+        IntPtr elementPtr = new(array.internalArray.ToInt64() + index * Marshal.SizeOf<ClayElementId>());
         return Marshal.PtrToStructure<ClayElementId>(elementPtr);
     }
 

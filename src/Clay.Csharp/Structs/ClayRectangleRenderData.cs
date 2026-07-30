@@ -8,7 +8,6 @@ namespace Clay.Csharp.Structs;
 [StructLayout(LayoutKind.Sequential)]
 public struct ClayRectangleRenderData
 {
-    public ClayBoundingBox boundingBox;
     /// <summary>The solid background color to fill this rectangle with. Conventionally represented as 0-255 for each channel.</summary>
     public ClayColor backgroundColor;
     public ClayCornerRadius cornerRadius;

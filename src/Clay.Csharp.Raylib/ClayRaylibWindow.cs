@@ -37,7 +37,13 @@ public sealed class ClayRaylibWindow : IDisposable
     private ClayArena _arena;
     private bool _disposed;
 
-    /// <summary>Fonts available to declared UI, indexed by Clay_TextElementConfig.fontId. Defaults to a single slot holding raylib's built-in font.</summary>
+    /// <summary>
+    /// Fonts available to declared UI, indexed by Clay_TextElementConfig.fontId. Must always contain at
+    /// least one font (index 0 is the fallback for unmatched fontIds). Defaults to a single slot holding
+    /// raylib's built-in font. If you replace this with fonts you've loaded yourself (Raylib.LoadFont),
+    /// you own them - Dispose() only unloads what this window created (the default font), not anything
+    /// you add here.
+    /// </summary>
     public Font[] Fonts { get; set; }
 
     /// <summary>Color used to clear the window at the start of every RunFrame(). Defaults to black.</summary>
@@ -87,7 +93,9 @@ public sealed class ClayRaylibWindow : IDisposable
     /// <summary>
     /// Runs one full frame: reads raylib input state into Clay, calls buildUI() between
     /// Layout.BeginLayout()/EndLayout(), then draws the resulting render commands. Returns the render
-    /// commands in case the caller wants to inspect them (tests, debugging, etc).
+    /// commands in case the caller wants to inspect them (tests, debugging, etc) - note that the
+    /// returned array's internal pointer lives inside this window's Clay arena, which gets reused on the
+    /// next RunFrame() call and freed on Dispose(), so don't hold onto it past either of those.
     /// </summary>
     public ClayRenderCommandArray RunFrame(Action buildUI)
     {
@@ -98,14 +106,30 @@ public sealed class ClayRaylibWindow : IDisposable
         ClayNative.Clay_SetLayoutDimensions(ClayHelpers.CreateDimensions(global::Raylib_cs.Raylib.GetScreenWidth(), global::Raylib_cs.Raylib.GetScreenHeight()));
         ClayNative.Clay_UpdateScrollContainers(false, ClayHelpers.CreateVector2(0, 0), deltaTime);
 
+        // Each phase is wrapped so a throwing buildUI/Render doesn't leave Clay's open-element stack or
+        // raylib's draw batch in a broken state for the *next* frame - the exception itself still
+        // propagates to the caller once EndLayout/EndDrawing have run.
         Layout.BeginLayout();
-        buildUI();
-        ClayRenderCommandArray commands = Layout.EndLayout(deltaTime);
+        ClayRenderCommandArray commands;
+        try
+        {
+            buildUI();
+        }
+        finally
+        {
+            commands = Layout.EndLayout(deltaTime);
+        }
 
         global::Raylib_cs.Raylib.BeginDrawing();
-        global::Raylib_cs.Raylib.ClearBackground(ClearColor);
-        ClayRaylibRenderer.Render(commands, Fonts);
-        global::Raylib_cs.Raylib.EndDrawing();
+        try
+        {
+            global::Raylib_cs.Raylib.ClearBackground(ClearColor);
+            ClayRaylibRenderer.Render(commands, Fonts);
+        }
+        finally
+        {
+            global::Raylib_cs.Raylib.EndDrawing();
+        }
 
         return commands;
     }
