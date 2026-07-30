@@ -64,29 +64,124 @@ and Windows.
 
 ## A minimal example
 
+This is a 1:1 C# port of the ["Quick Start"](https://github.com/nicbarker/clay#quick-start) example from
+upstream Clay's own README - a fixed-width sidebar with a profile picture and five repeated items, next
+to a flexible-width main content area. The original spells out `Clay_MinMemorySize` /
+`Clay_CreateArenaWithCapacityAndMemory` / `Clay_Initialize`, a measure-text function, and a manual
+render-command switch/loop by hand; `ClayRaylibWindow` exists specifically to hide that boilerplate, so
+only the interesting part - the actual layout - is shown here (see `samples/Clay.Samples.Raylib` for the
+runnable version, or `ClayRaylibWindow`'s own source for the low-level equivalent of what upstream's
+`main()` does by hand).
+
 ```csharp
-using ClayRaylibWindow window = ClayRaylibWindow.Create(800, 600, "My App");
+ClayColor colorLight = ClayHelpers.CreateColor(224, 215, 210);
+ClayColor colorRed = ClayHelpers.CreateColor(168, 66, 28);
+ClayColor colorOrange = ClayHelpers.CreateColor(225, 138, 50);
+
+// Layout config is just a struct that can be declared once, statically, and reused.
+ClayElementDeclaration sidebarItemConfig = new()
+{
+    layout = new ClayLayoutConfig
+    {
+        sizing = new ClaySizing { width = ClaySizingAxis.Grow(), height = ClaySizingAxis.Fixed(50) },
+    },
+    backgroundColor = colorOrange,
+};
+
+// Re-usable components are just normal C# methods.
+void SidebarItemComponent(int index)
+{
+    using (Layout.Element(Layout.Id("SidebarItem", (uint)index), sidebarItemConfig))
+    {
+        // children go here...
+    }
+}
+
+using ClayRaylibWindow window = ClayRaylibWindow.Create(800, 600, "Clay.Net Quick Start");
+
+// raylib's built-in default font is a tiny 10px bitmap font - fine for debug overlays, not for real UI
+// text at 20-28px like this example uses. Load a proper font instead (see LoadFont's doc comment).
+window.LoadFont(Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts", "Inter-Regular.ttf"));
 
 while (!window.ShouldClose)
 {
     window.RunFrame(() =>
     {
-        using (Layout.Element("Root", new ClayElementDeclaration
+        // An example of laying out a UI with a fixed width sidebar and flexible width main content.
+        using (Layout.Element("OuterContainer", new ClayElementDeclaration
         {
             layout = new ClayLayoutConfig
             {
                 sizing = new ClaySizing { width = ClaySizingAxis.Grow(), height = ClaySizingAxis.Grow() },
-                padding = ClayHelpers.CreatePaddingUniform(24),
+                padding = ClayHelpers.CreatePaddingUniform(16),
                 childGap = 16,
             },
-            backgroundColor = ClayHelpers.CreateColor(30, 30, 35),
+            backgroundColor = ClayHelpers.CreateColor(250, 250, 255),
         }))
         {
-            Layout.Text("Hello, Clay.Net!", new ClayTextElementConfig
+            using (Layout.Element("SideBar", new ClayElementDeclaration
             {
-                fontSize = 28,
-                textColor = ClayHelpers.CreateColor(255, 255, 255),
-            });
+                layout = new ClayLayoutConfig
+                {
+                    layoutDirection = ClayLayoutDirection.ClayTopToBottom,
+                    sizing = new ClaySizing { width = ClaySizingAxis.Fixed(300), height = ClaySizingAxis.Grow() },
+                    padding = ClayHelpers.CreatePaddingUniform(16),
+                    childGap = 16,
+                },
+                backgroundColor = colorLight,
+            }))
+            {
+                using (Layout.Element("ProfilePictureOuter", new ClayElementDeclaration
+                {
+                    layout = new ClayLayoutConfig
+                    {
+                        sizing = new ClaySizing { width = ClaySizingAxis.Grow() },
+                        padding = ClayHelpers.CreatePaddingUniform(16),
+                        childGap = 16,
+                        childAlignment = new ClayChildAlignment { y = ClayLayoutAlignmentY.ClayAlignYCenter },
+                    },
+                    backgroundColor = colorRed,
+                }))
+                {
+                    using (Layout.Element("ProfilePicture", new ClayElementDeclaration
+                    {
+                        layout = new ClayLayoutConfig
+                        {
+                            sizing = new ClaySizing { width = ClaySizingAxis.Fixed(60), height = ClaySizingAxis.Fixed(60) },
+                        },
+                        // Upstream sets `.image = { .imageData = &profilePicture }` here - image render
+                        // commands aren't wired up in ClayRaylibRenderer yet (see Status below), so this
+                        // stays a plain colored placeholder for now.
+                        backgroundColor = ClayHelpers.CreateColor(180, 180, 180),
+                        cornerRadius = ClayHelpers.CreateCornerRadius(30),
+                    }))
+                    {
+                    }
+
+                    Layout.Text("Clay.Net - UI Library", new ClayTextElementConfig
+                    {
+                        fontSize = 24,
+                        textColor = ClayHelpers.CreateColor(255, 255, 255),
+                    });
+                }
+
+                // Standard C# code like loops etc work inside components.
+                for (int i = 0; i < 5; i++)
+                {
+                    SidebarItemComponent(i);
+                }
+
+                using (Layout.Element("MainContent", new ClayElementDeclaration
+                {
+                    layout = new ClayLayoutConfig
+                    {
+                        sizing = new ClaySizing { width = ClaySizingAxis.Grow(), height = ClaySizingAxis.Grow() },
+                    },
+                    backgroundColor = colorLight,
+                }))
+                {
+                }
+            }
         }
     });
 }
@@ -100,6 +195,11 @@ C has no macros in C#, so opening/configuring/closing an element is instead expr
 If you want lower-level control (custom frame pacing, multiple Clay contexts, a different render
 pipeline), you can use `ClayNative` (the 1:1 facade over Clay's C API) and `ClayRaylibRenderer`
 (the stateless render-command → draw-call translator) directly instead of `ClayRaylibWindow`.
+
+**Fonts:** `ClayRaylibWindow` defaults to raylib's built-in font, which is a tiny 10px bitmap font not
+meant to be scaled up - it looks blocky/blurry at any real UI text size (the example above calls
+`window.LoadFont(path)` to replace it with a proper TTF, which is what actually produces the crisp text
+in `samples/Clay.Samples.Raylib`, bundling [Inter](https://github.com/rsms/inter) under OFL-1.1).
 
 ## Platform support
 

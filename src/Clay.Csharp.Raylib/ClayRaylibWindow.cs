@@ -34,15 +34,18 @@ public sealed class ClayRaylibWindow : IDisposable
 {
     private readonly ClayNative.ErrorHandlerFunction _errorHandler;
     private readonly ClayNative.MeasureTextFunction _measureText;
+    private readonly List<Font> _ownedFonts = new();
     private ClayArena _arena;
     private bool _disposed;
 
     /// <summary>
     /// Fonts available to declared UI, indexed by Clay_TextElementConfig.fontId. Must always contain at
     /// least one font (index 0 is the fallback for unmatched fontIds). Defaults to a single slot holding
-    /// raylib's built-in font. If you replace this with fonts you've loaded yourself (Raylib.LoadFont),
-    /// you own them - Dispose() only unloads what this window created (the default font), not anything
-    /// you add here.
+    /// raylib's built-in font - which is a tiny 10px bitmap font not meant to be scaled up, and looks
+    /// blocky/blurry at any real UI text size. Call <see cref="LoadFont"/> to replace it with a proper
+    /// TTF/OTF font (see samples/Clay.Samples.Raylib for a bundled example). If you assign fonts you've
+    /// loaded yourself (Raylib.LoadFontEx) directly into this array instead, you own them - Dispose()
+    /// only unloads fonts loaded through <see cref="LoadFont"/>.
     /// </summary>
     public Font[] Fonts { get; set; }
 
@@ -88,6 +91,26 @@ public sealed class ClayRaylibWindow : IDisposable
         Font[] fonts = [global::Raylib_cs.Raylib.GetFontDefault()];
 
         return new ClayRaylibWindow(arena, errorHandler, fonts);
+    }
+
+    /// <summary>
+    /// Loads a TTF/OTF font from disk and installs it into <see cref="Fonts"/> at the given fontId
+    /// (growing the array if needed), with bilinear texture filtering enabled so it scales cleanly at
+    /// whatever size Clay's layout ends up drawing it at. <paramref name="baseSize"/> is the resolution
+    /// the glyphs are rasterized at - higher looks crisper when text is displayed larger, at the cost of
+    /// a bigger glyph atlas texture; 48 is a reasonable default for typical UI text sizes. The font is
+    /// unloaded automatically on <see cref="Dispose"/>.
+    /// </summary>
+    public void LoadFont(string filePath, int fontId = 0, int baseSize = 48)
+    {
+        Font font = global::Raylib_cs.Raylib.LoadFontEx(filePath, baseSize, null, 0);
+        global::Raylib_cs.Raylib.SetTextureFilter(font.Texture, TextureFilter.Bilinear);
+        _ownedFonts.Add(font);
+
+        Font[] fonts = new Font[Math.Max(Fonts.Length, fontId + 1)];
+        Array.Copy(Fonts, fonts, Fonts.Length);
+        fonts[fontId] = font;
+        Fonts = fonts;
     }
 
     /// <summary>
@@ -142,6 +165,13 @@ public sealed class ClayRaylibWindow : IDisposable
         }
 
         _disposed = true;
+
+        // Fonts must be unloaded while the GL context is still alive, so before CloseWindow().
+        foreach (Font font in _ownedFonts)
+        {
+            global::Raylib_cs.Raylib.UnloadFont(font);
+        }
+
         ClayHelpers.FreeArena(ref _arena);
         global::Raylib_cs.Raylib.CloseWindow();
     }

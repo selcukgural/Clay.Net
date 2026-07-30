@@ -15,4 +15,15 @@
       <ProjectReference Include="..\..\src\Clay.Csharp.Raylib\Clay.Csharp.Raylib.csproj" />
     </ItemGroup>
 
+    <!-- Inter (OFL-1.1 licensed, see Assets/Fonts/Inter-OFL.txt) - raylib's built-in default font is a
+         tiny 10px bitmap font that looks blocky/blurry at real UI text sizes. -->
+    <ItemGroup>
+      <Content Include="Assets\Fonts\Inter-Regular.ttf">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Assets\Fonts\Inter-OFL.txt">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
 </Project>
