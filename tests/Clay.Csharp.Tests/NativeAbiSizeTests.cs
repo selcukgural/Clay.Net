@@ -18,6 +18,7 @@ namespace Clay.Csharp.Tests;
 /// Requires the native clay_native library for the current platform - not available on every CI runner
 /// yet (see README's Platform support table), hence the RequiresNative trait.
 /// </summary>
+[Collection("ClayNative")]
 [Trait("RequiresNative", "true")]
 public class NativeAbiSizeTests
 {

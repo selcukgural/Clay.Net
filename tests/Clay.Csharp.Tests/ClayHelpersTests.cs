@@ -91,7 +91,10 @@ public class ClayHelpersTests
         Assert.Throws<IndexOutOfRangeException>(() => ClayHelpers.GetRenderCommand(array, 0));
     }
 
+    // CreateArena calls into the native library (Clay_CreateArenaWithCapacityAndMemory) - unlike the rest
+    // of this file, these two need a real clay_native binary for the current platform.
     [Fact]
+    [Trait("RequiresNative", "true")]
     public void CreateArena_ThenFreeArena_DoesNotThrow_AndZeroesMemoryPointer()
     {
         ClayArena arena = ClayHelpers.CreateArena(1024);
@@ -103,6 +106,7 @@ public class ClayHelpersTests
     }
 
     [Fact]
+    [Trait("RequiresNative", "true")]
     public void FreeArena_CalledTwice_IsSafe()
     {
         ClayArena arena = ClayHelpers.CreateArena(64);

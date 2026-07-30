@@ -16,6 +16,7 @@ namespace Clay.Csharp.Tests;
 ///    transitions.
 /// </summary>
 [Collection("ClayNative")]
+[Trait("RequiresNative", "true")]
 public class HoverAndTransitionTests
 {
     [Fact]

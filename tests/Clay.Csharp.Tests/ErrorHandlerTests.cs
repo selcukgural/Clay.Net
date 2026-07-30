@@ -14,6 +14,7 @@ namespace Clay.Csharp.Tests;
 /// to corrupt Clay's internal allocations, so that path isn't exercised here.
 /// </summary>
 [Collection("ClayNative")]
+[Trait("RequiresNative", "true")]
 public class ErrorHandlerTests
 {
     [Fact]

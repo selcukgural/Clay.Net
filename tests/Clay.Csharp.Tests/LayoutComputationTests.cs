@@ -14,6 +14,7 @@ namespace Clay.Csharp.Tests;
 /// produce visibly wrong numbers here, not just "close enough" ones.
 /// </summary>
 [Collection("ClayNative")]
+[Trait("RequiresNative", "true")]
 public class LayoutComputationTests
 {
     [Fact]
