@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>Clay.Samples.Raylib</RootNamespace>
+        <AssemblyName>Clay.Samples.Raylib</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\Clay.Csharp\Clay.Csharp.csproj" />
+      <ProjectReference Include="..\..\src\Clay.Csharp.Raylib\Clay.Csharp.Raylib.csproj" />
+    </ItemGroup>
+
+</Project>

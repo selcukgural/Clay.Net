@@ -1,0 +1,21 @@
+# .NET build output
+bin/
+obj/
+
+# JetBrains Rider / CLion
+.idea/
+*.iml
+cmake-build-*/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# macOS
+.DS_Store
+
+# CMake (outside of cmake-build-*/, in case of in-tree builds)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake

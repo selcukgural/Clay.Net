@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <!--
+      Prebuilt native clay_native binaries, laid out the same way NuGet ships native assets
+      (runtimes/<RID>/native/<file>), so `dotnet build`/`dotnet run` work out of the box on any platform
+      that has a prebuilt binary here, with no per-OS conditions needed at build time: every RID present
+      under native/clay_native/prebuilt/ gets copied to the output, and the .NET host picks the right one
+      for the current OS/architecture automatically at load time - the same mechanism used by every
+      NuGet package that ships native binaries (see how Raylib-cs's own libraylib ends up in this
+      project's output). Only osx-arm64 is bundled today; adding another platform is just a matter of
+      building native/clay_native there (see README) and dropping the result under
+      prebuilt/<RID>/native/, no csproj changes required.
+    -->
+    <ItemGroup>
+        <ClayNativePrebuilt Include="..\..\native\clay_native\prebuilt\**\*" />
+        <Content Include="@(ClayNativePrebuilt)">
+            <Link>runtimes\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+
+</Project>
