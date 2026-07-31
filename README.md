@@ -281,6 +281,35 @@ trusting hand-derived constants alone - see [Testing](#testing).
   **published NuGet packages** are cross-platform: the [release workflow](#releasing-a-new-version)
   builds `clay_native` fresh for linux-x64, win-x64 and osx-arm64 and bundles all three into the package.
 
+## Contributing
+
+Contributions are welcome - bug fixes, a new renderer package, prebuilt native binaries for a platform
+that doesn't have one yet (see [Platform support](#platform-support)), or anything else.
+
+**Getting set up:** .NET SDK 8.0+ (pinned via `global.json`) is all you need for C#-only changes; add
+CMake 3.20+ and a C compiler if you're touching `native/clay_native`. Fork the repo, branch off `main`,
+and make sure both of these are clean before opening a PR:
+
+```sh
+dotnet build Clay.Net.sln
+dotnet test Clay.Net.sln
+```
+
+**If you're changing structs/enums bound to `clay.h`, or the native wrapper itself:** ABI correctness
+here isn't optional - a wrong field order, bool size, or enum underlying type silently corrupts memory
+instead of failing to compile (see [Correctness note](#correctness-note-why-this-isnt-just-add-dllimport-and-go)).
+Add or update the corresponding tests in `tests/Clay.Csharp.Tests` (`AbiSizeTests`, `AbiFieldOffsetTests`,
+`EnumValueTests` for hand-derived checks; `NativeAbiSizeTests` for the native-verified cross-check) rather
+than just eyeballing it against `clay.h`.
+
+**If you're adding a prebuilt native binary for a new RID:** build `native/clay_native` from source (see
+[Building clay_native from source](#building-clay_native-from-source)) and drop the result under
+`native/clay_native/prebuilt/<RID>/native/` - no csproj changes needed, it's picked up automatically.
+
+**Opening a PR:** target `main`. Direct pushes to `main` are restricted to repo admins, so everyone else's
+changes go through a PR + review, same as CI would enforce anyway - `.github/workflows/ci.yml` runs the
+full build and test matrix (Linux/Windows/macOS) on every PR and must be green before merging.
+
 ## Releasing a new version
 
 Maintainer-only. Tag `main` with a semver-ish version and create a GitHub Release from it:
