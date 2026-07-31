@@ -1,0 +1,130 @@
+name: Release
+
+# Publishes Clay.Csharp and Clay.Csharp.Raylib to NuGet.org whenever a GitHub Release is published,
+# after re-running the full test suite and building fresh native binaries for every supported platform.
+#
+# Can also be run manually (workflow_dispatch) as a dry run: it always builds/tests/packs and uploads the
+# resulting .nupkg/.snupkg files as workflow artifacts, but only pushes to NuGet.org / attaches packages
+# to a GitHub Release when triggered by an actual release, or when manually dispatched with `publish: true`.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Actually push to NuGet.org (leave false for a dry run)"
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    name: build & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Clay.Net.sln
+
+      - name: Test (native-independent)
+        if: runner.os != 'macOS'
+        run: dotnet test Clay.Net.sln --filter "RequiresNative!=true"
+
+      - name: Test (all)
+        if: runner.os == 'macOS'
+        run: dotnet test Clay.Net.sln
+
+  build-native:
+    name: build native (${{ matrix.rid }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            lib: libclay_native.so
+          - os: windows-latest
+            rid: win-x64
+            lib: clay_native.dll
+          - os: macos-latest
+            rid: osx-arm64
+            lib: libclay_native.dylib
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B native/clay_native/cmake-build -S native/clay_native -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build native/clay_native/cmake-build --config Release
+
+      - name: Stage output
+        shell: bash
+        run: |
+          mkdir -p "staging/${{ matrix.rid }}/native"
+          find native/clay_native/cmake-build -name "${{ matrix.lib }}" -exec cp {} "staging/${{ matrix.rid }}/native/" \;
+          test -f "staging/${{ matrix.rid }}/native/${{ matrix.lib }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: staging
+
+  pack-and-publish:
+    name: pack & publish
+    needs: [test, build-native]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Merges native-linux-x64/native-win-x64/native-osx-arm64 artifacts (each rooted at <rid>/native/<lib>)
+      # straight into native/clay_native/prebuilt/, reconstructing prebuilt/<rid>/native/<lib> for all
+      # three RIDs - Clay.Csharp.csproj's existing glob picks these up and packs them into runtimes/.
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: native/clay_native/prebuilt
+          merge-multiple: true
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="0.0.0-dryrun.${{ github.run_number }}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Pack
+        run: dotnet pack Clay.Net.sln -c Release -p:Version=${{ steps.version.outputs.version }} -o ./artifacts/nupkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts/nupkg/*
+
+      - name: Push to NuGet.org
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        run: dotnet nuget push "./artifacts/nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Attach packages to the GitHub Release
+        if: github.event_name == 'release'
+        run: gh release upload "${{ github.event.release.tag_name }}" ./artifacts/nupkg/*
+        env:
+          GH_TOKEN: ${{ github.token }}

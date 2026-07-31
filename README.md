@@ -9,6 +9,20 @@ here", "draw this text there") - it does not draw anything to the screen. Clay.N
 design: the core library is renderer-agnostic, and a small renderer package (currently for
 [raylib](https://www.raylib.com/)) turns those render commands into pixels.
 
+## Installation
+
+[![NuGet](https://img.shields.io/nuget/v/Clay.Csharp.svg?label=Clay.Csharp)](https://www.nuget.org/packages/Clay.Csharp)
+[![NuGet](https://img.shields.io/nuget/v/Clay.Csharp.Raylib.svg?label=Clay.Csharp.Raylib)](https://www.nuget.org/packages/Clay.Csharp.Raylib)
+
+```sh
+dotnet add package Clay.Csharp
+dotnet add package Clay.Csharp.Raylib   # optional: raylib renderer + window wrapper
+```
+
+`Clay.Csharp` ships the prebuilt native `clay_native` binary for every supported platform inside the
+package itself (`runtimes/<RID>/native/`, the standard NuGet convention for native assets) - the right
+one is picked automatically at load time, no manual build step required.
+
 ## Project layout
 
 ```
@@ -262,9 +276,29 @@ trusting hand-derived constants alone - see [Testing](#testing).
   `ClayRaylibRenderer.Render`).
 - Only one renderer (raylib) exists so far; SDL2/SDL3/etc. would follow the same pattern as
   `src/Clay.Csharp.Raylib` as separate, optional packages.
-- No prebuilt native binaries yet for macOS x64, Linux, or Windows - see
-  [Platform support](#platform-support). CI has a compile-only check for `native/clay_native` on Linux
-  and Windows, but doesn't yet produce prebuilt binaries from it.
+- The repo's committed `native/clay_native/prebuilt/` only bundles macOS arm64 (see
+  [Platform support](#platform-support)) - that's what `dotnet build`/`dotnet run` from source use. The
+  **published NuGet packages** are cross-platform: the [release workflow](#releasing-a-new-version)
+  builds `clay_native` fresh for linux-x64, win-x64 and osx-arm64 and bundles all three into the package.
+
+## Releasing a new version
+
+Maintainer-only. Tag `main` with a semver-ish version and create a GitHub Release from it:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+gh release create v0.2.0 --generate-notes
+```
+
+Publishing the release triggers `.github/workflows/release.yml`, which re-runs the full test suite,
+builds `clay_native` from source for linux-x64/win-x64/osx-arm64, packs `Clay.Csharp` and
+`Clay.Csharp.Raylib` at that version, pushes both to NuGet.org, and attaches the `.nupkg`/`.snupkg` files
+to the GitHub Release. Requires a `NUGET_API_KEY` repository secret (a nuget.org API key with push rights
+to both package IDs) to already exist - one-time setup: `gh secret set NUGET_API_KEY`.
+
+The workflow can also be run manually from the Actions tab (`workflow_dispatch`) as a dry run - it builds,
+tests and packs exactly the same way, but only pushes to NuGet.org if you explicitly tick `publish`.
 
 ## Credits & license
 

@@ -7,6 +7,18 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <IsPackable>true</IsPackable>
+        <PackageId>Clay.Csharp</PackageId>
+        <Description>A .NET port of Clay (https://github.com/nicbarker/clay), Nic Barker's high-performance, single-header C UI layout library. Wraps the real, unmodified clay.h via P/Invoke and adds an idiomatic, declarative C# API on top of it.</Description>
+        <PackageTags>clay;ui;layout;immediate-mode;flexbox;native;interop;gamedev</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
     <!--
       Prebuilt native clay_native binaries, laid out the same way NuGet ships native assets
       (runtimes/<RID>/native/<file>), so `dotnet build`/`dotnet run` work out of the box on any platform
@@ -14,15 +26,18 @@
       under native/clay_native/prebuilt/ gets copied to the output, and the .NET host picks the right one
       for the current OS/architecture automatically at load time - the same mechanism used by every
       NuGet package that ships native binaries (see how Raylib-cs's own libraylib ends up in this
-      project's output). Only osx-arm64 is bundled today; adding another platform is just a matter of
-      building native/clay_native there (see README) and dropping the result under
-      prebuilt/<RID>/native/, no csproj changes required.
+      project's output). Only osx-arm64 is bundled in the repo today; the release workflow builds
+      linux-x64 and win-x64 fresh and drops them here before packing (see .github/workflows/release.yml),
+      so published NuGet packages ship all three. Pack/PackagePath mirror the Link metadata so the same
+      files also land under runtimes/<RID>/native/ inside the .nupkg.
     -->
     <ItemGroup>
         <ClayNativePrebuilt Include="..\..\native\clay_native\prebuilt\**\*" />
         <Content Include="@(ClayNativePrebuilt)">
             <Link>runtimes\%(RecursiveDir)%(Filename)%(Extension)</Link>
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Pack>true</Pack>
+            <PackagePath>runtimes\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
         </Content>
     </ItemGroup>
 

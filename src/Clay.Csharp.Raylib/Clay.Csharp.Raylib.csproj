@@ -6,12 +6,24 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <IsPackable>true</IsPackable>
+        <PackageId>Clay.Csharp.Raylib</PackageId>
+        <Description>Raylib-cs renderer for Clay.Net: translates Clay's render commands into raylib draw calls, plus a batteries-included window and frame-loop wrapper (ClayRaylibWindow) so a consumer only has to describe what to lay out.</Description>
+        <PackageTags>clay;ui;layout;raylib;renderer;gamedev</PackageTags>
+    </PropertyGroup>
+
     <ItemGroup>
         <ProjectReference Include="..\Clay.Csharp\Clay.Csharp.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Raylib-cs" Version="8.0.0" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
     <ItemGroup>

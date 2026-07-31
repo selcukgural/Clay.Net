@@ -1,0 +1,31 @@
+<Project>
+
+    <!--
+      Shared metadata for every project in the repo. IsPackable defaults to false here (the SDK's own
+      default is true) so samples/tests stay unpublishable without needing per-project opt-outs; the two
+      packable libraries (src/Clay.Csharp, src/Clay.Csharp.Raylib) override it back to true themselves.
+      $(Version) falls back to 0.1.0 for local `dotnet pack` runs - the release workflow always passes
+      the real version explicitly via `-p:Version=X.Y.Z` derived from the GitHub Release tag.
+    -->
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <Version Condition="'$(Version)' == ''">0.1.0</Version>
+
+        <Authors>Selçuk Güral</Authors>
+        <Company>Clay.Net contributors</Company>
+        <Copyright>Copyright (c) 2026 Clay.Net contributors</Copyright>
+        <PackageProjectUrl>https://github.com/selcukgural/Clay.Net</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/selcukgural/Clay.Net</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>Zlib</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+</Project>
