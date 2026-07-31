@@ -2,6 +2,8 @@ name: Release
 
 # Publishes Clay.Csharp and Clay.Csharp.Raylib to NuGet.org whenever a GitHub Release is published,
 # after re-running the full test suite and building fresh native binaries for every supported platform.
+# Authenticates to nuget.org via Trusted Publishing (OIDC, no long-lived API key stored anywhere) - see
+# https://learn.microsoft.com/nuget/nuget-org/trusted-publishing and README's "Releasing a new version".
 #
 # Can also be run manually (workflow_dispatch) as a dry run: it always builds/tests/packs and uploads the
 # resulting .nupkg/.snupkg files as workflow artifacts, but only pushes to NuGet.org / attaches packages
@@ -83,6 +85,13 @@ jobs:
     name: pack & publish
     needs: [test, build-native]
     runs-on: ubuntu-latest
+    # id-token: write lets this job request a GitHub OIDC token, which NuGet/login exchanges for a
+    # short-lived (1 hour) nuget.org API key - see https://learn.microsoft.com/nuget/nuget-org/trusted-publishing.
+    # Setting an explicit permissions block also drops every other default token permission, so
+    # contents: write is re-added for the "attach to release" step's `gh release upload`.
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -119,9 +128,17 @@ jobs:
           name: nuget-packages
           path: ./artifacts/nupkg/*
 
+      # Requested right before the push (not earlier) since the resulting API key is only valid for 1 hour.
+      - name: NuGet login (OIDC -> temporary API key)
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        uses: NuGet/login@v1
+        id: nuget_login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push to NuGet.org
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish)
-        run: dotnet nuget push "./artifacts/nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "./artifacts/nupkg/*.nupkg" --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Attach packages to the GitHub Release
         if: github.event_name == 'release'

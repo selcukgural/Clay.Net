@@ -294,8 +294,16 @@ gh release create v0.2.0 --generate-notes
 Publishing the release triggers `.github/workflows/release.yml`, which re-runs the full test suite,
 builds `clay_native` from source for linux-x64/win-x64/osx-arm64, packs `Clay.Csharp` and
 `Clay.Csharp.Raylib` at that version, pushes both to NuGet.org, and attaches the `.nupkg`/`.snupkg` files
-to the GitHub Release. Requires a `NUGET_API_KEY` repository secret (a nuget.org API key with push rights
-to both package IDs) to already exist - one-time setup: `gh secret set NUGET_API_KEY`.
+to the GitHub Release.
+
+Publishing authenticates to nuget.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing)
+(OIDC - no long-lived API key stored in the repo). One-time setup before the first release:
+
+1. On nuget.org, under your account's **Trusted Publishing** page, add a policy: Repository Owner
+   `selcukgural`, Repository `Clay.Net`, Workflow File `release.yml`, Environment left empty.
+2. Add your nuget.org username (profile name, not your email) as a repo secret:
+   `gh secret set NUGET_USER` (the workflow only ever uses it to identify who's logging in - the actual
+   short-lived publish credential is minted per-run via OIDC and never stored).
 
 The workflow can also be run manually from the Actions tab (`workflow_dispatch`) as a dry run - it builds,
 tests and packs exactly the same way, but only pushes to NuGet.org if you explicitly tick `publish`.
