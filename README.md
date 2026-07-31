@@ -163,9 +163,9 @@ while (!window.ShouldClose)
                         {
                             sizing = new ClaySizing { width = ClaySizingAxis.Fixed(60), height = ClaySizingAxis.Fixed(60) },
                         },
-                        // Upstream sets `.image = { .imageData = &profilePicture }` here - image render
-                        // commands aren't wired up in ClayRaylibRenderer yet (see Status below), so this
-                        // stays a plain colored placeholder for now.
+                        // Upstream sets `.image = { .imageData = &profilePicture }` here - Clay.Net
+                        // supports image rendering now too (see ClayRaylibWindow.LoadTexture), but this
+                        // sample keeps a plain colored placeholder to avoid bundling an extra image asset.
                         backgroundColor = ClayHelpers.CreateColor(180, 180, 180),
                         cornerRadius = ClayHelpers.CreateCornerRadius(30),
                     }))
@@ -271,9 +271,16 @@ trusting hand-derived constants alone - see [Testing](#testing).
 - P/Invoke surface (`Clay.Csharp.Internal.ClayNativeInternal`) and public facade (`ClayNative`): complete.
 - Declarative element API, per-frame text/id string arena, transition callback marshaling,
   `Clay_OnHover`: implemented and verified against the real native library.
-- Raylib renderer: rectangles, text, borders (including corner-radius-aware borders), scissor/clip -
-  working. Images, custom render commands, and color-overlay transitions are not wired up yet (see
-  `ClayRaylibRenderer.Render`).
+- Raylib renderer: rectangles, text, borders (including corner-radius-aware borders), scissor/clip,
+  images (`ClayRaylibWindow.LoadTexture`), and color-overlay transitions - all working. Two honest
+  limitations worth knowing: custom render commands have no built-in implementation (they're inherently
+  app-defined - upstream's own reference renderer uses this to draw a 3D model, for example) but can be
+  handled via `ClayRaylibWindow.OnCustomRender`/`ClayRaylibRenderer.Render`'s `onCustom` callback; and
+  color overlays are drawn as a flat alpha-blended rectangle rather than a true per-pixel shader tint
+  (clay.h doesn't give renderers a bounding box for `OVERLAY_COLOR_START`/`_END` commands, so
+  `ClayRaylibRenderer` approximates one from the union of everything actually drawn inside the overlaid
+  element - see `UnionBoundingBox`'s doc comment - which means empty padding/gap space with no background
+  or children won't be tinted).
 - Only one renderer (raylib) exists so far; SDL2/SDL3/etc. would follow the same pattern as
   `src/Clay.Csharp.Raylib` as separate, optional packages.
 - The repo's committed `native/clay_native/prebuilt/` only bundles macOS arm64 (see

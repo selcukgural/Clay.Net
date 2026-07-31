@@ -35,6 +35,7 @@ public sealed class ClayRaylibWindow : IDisposable
     private readonly ClayNative.ErrorHandlerFunction _errorHandler;
     private readonly ClayNative.MeasureTextFunction _measureText;
     private readonly List<Font> _ownedFonts = new();
+    private readonly List<ClayTexture> _ownedTextures = new();
     private ClayArena _arena;
     private bool _disposed;
 
@@ -51,6 +52,13 @@ public sealed class ClayRaylibWindow : IDisposable
 
     /// <summary>Color used to clear the window at the start of every RunFrame(). Defaults to black.</summary>
     public Color ClearColor { get; set; } = Color.Black;
+
+    /// <summary>
+    /// Called for each CUSTOM render command during <see cref="RunFrame"/> - see
+    /// <see cref="ClayRaylibRenderer.Render"/>'s <c>onCustom</c> parameter. Null (the default) means
+    /// custom commands are silently skipped.
+    /// </summary>
+    public Action<ClayCustomRenderData, ClayBoundingBox>? OnCustomRender { get; set; }
 
     /// <summary>True once the user has requested the window be closed (matches Raylib.WindowShouldClose()).</summary>
     public bool ShouldClose => global::Raylib_cs.Raylib.WindowShouldClose();
@@ -114,6 +122,26 @@ public sealed class ClayRaylibWindow : IDisposable
     }
 
     /// <summary>
+    /// Loads a texture from disk and returns a <see cref="ClayTexture"/> whose <c>ImageData</c> pointer
+    /// can be passed straight into <c>ClayElementDeclaration.image.imageData</c> to draw it via an IMAGE
+    /// render command. The underlying GPU texture (and the small unmanaged copy backing that pointer) are
+    /// unloaded automatically on <see cref="Dispose"/>.
+    /// </summary>
+    public ClayTexture LoadTexture(string filePath)
+    {
+        Texture2D texture = global::Raylib_cs.Raylib.LoadTexture(filePath);
+
+        // ClayImageElementConfig.imageData needs a stable address a renderer can dereference later - a
+        // managed Texture2D value doesn't have one, so a copy is pinned in unmanaged memory instead.
+        IntPtr imageData = Marshal.AllocHGlobal(Marshal.SizeOf<Texture2D>());
+        Marshal.StructureToPtr(texture, imageData, false);
+
+        ClayTexture clayTexture = new(texture, imageData);
+        _ownedTextures.Add(clayTexture);
+        return clayTexture;
+    }
+
+    /// <summary>
     /// Runs one full frame: reads raylib input state into Clay, calls buildUI() between
     /// Layout.BeginLayout()/EndLayout(), then draws the resulting render commands. Returns the render
     /// commands in case the caller wants to inspect them (tests, debugging, etc) - note that the
@@ -147,7 +175,7 @@ public sealed class ClayRaylibWindow : IDisposable
         try
         {
             global::Raylib_cs.Raylib.ClearBackground(ClearColor);
-            ClayRaylibRenderer.Render(commands, Fonts);
+            ClayRaylibRenderer.Render(commands, Fonts, OnCustomRender);
         }
         finally
         {
@@ -166,10 +194,16 @@ public sealed class ClayRaylibWindow : IDisposable
 
         _disposed = true;
 
-        // Fonts must be unloaded while the GL context is still alive, so before CloseWindow().
+        // Fonts/textures must be unloaded while the GL context is still alive, so before CloseWindow().
         foreach (Font font in _ownedFonts)
         {
             global::Raylib_cs.Raylib.UnloadFont(font);
+        }
+
+        foreach (ClayTexture texture in _ownedTextures)
+        {
+            global::Raylib_cs.Raylib.UnloadTexture(texture.Texture);
+            Marshal.FreeHGlobal(texture.ImageData);
         }
 
         ClayHelpers.FreeArena(ref _arena);

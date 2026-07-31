@@ -52,13 +52,36 @@ public static class ClayRaylibRenderer
     /// Draws a full frame's worth of Clay render commands using raylib, indexing text/image commands'
     /// fontId against the provided fonts array. Call between Raylib.BeginDrawing() / EndDrawing().
     /// </summary>
-    public static void Render(ClayRenderCommandArray commands, Font[] fonts)
+    /// <param name="onCustom">
+    /// Called for each CUSTOM render command (see <see cref="ClayCustomElementConfig"/>), since Clay.Net
+    /// has no generic way to know what a custom element should look like - it's app-defined (upstream's
+    /// own reference renderer, for example, uses this hook to draw a 3D model). Custom commands are
+    /// silently skipped if this is null.
+    /// </param>
+    public static void Render(ClayRenderCommandArray commands, Font[] fonts, Action<ClayCustomRenderData, ClayBoundingBox>? onCustom = null)
     {
+        // Tracks color + accumulated bounding box for every currently-open OVERLAY_COLOR_START..END
+        // bracket (a List, not a Stack<T>, since every active level needs its accumulator updated in
+        // place as commands stream by - see the ComputeOverlayColor* helpers below for why a box has to
+        // be accumulated at all rather than just read off the command).
+        List<(ClayColor Color, ClayBoundingBox? Bounds)> overlayStack = new();
+
         for (int i = 0; i < commands.length; i++)
         {
             ClayRenderCommand command = ClayNative.Clay_RenderCommandArray_Get(ref commands, i);
             ClayBoundingBox box = command.boundingBox;
             Rectangle rect = new(box.x, box.y, box.width, box.height);
+
+            // OVERLAY_COLOR_START/END commands don't carry a usable boundingBox of their own (clay.h
+            // leaves it zero-initialized on both), so every other command's box is folded into every
+            // currently-open overlay level as it streams by - see UnionBoundingBox's doc comment.
+            if (overlayStack.Count > 0 && command.commandType is not (ClayRenderCommandType.ClayRenderCommandTypeOverlayColorStart or ClayRenderCommandType.ClayRenderCommandTypeOverlayColorEnd))
+            {
+                for (int level = 0; level < overlayStack.Count; level++)
+                {
+                    overlayStack[level] = (overlayStack[level].Color, UnionBoundingBox(overlayStack[level].Bounds, box));
+                }
+            }
 
             switch (command.commandType)
             {
@@ -163,12 +186,62 @@ public static class ClayRaylibRenderer
                     break;
                 }
                 case ClayRenderCommandType.ClayRenderCommandTypeImage:
+                {
+                    ClayImageRenderData data = command.renderData.image;
+                    if (data.imageData != IntPtr.Zero)
+                    {
+                        Texture2D texture = Marshal.PtrToStructure<Texture2D>(data.imageData);
+                        global::Raylib_cs.Raylib.DrawTexturePro(
+                            texture,
+                            new Rectangle(0, 0, texture.Width, texture.Height),
+                            rect,
+                            Vector2.Zero,
+                            0,
+                            ResolveImageTint(data.backgroundColor));
+                    }
+
+                    break;
+                }
                 case ClayRenderCommandType.ClayRenderCommandTypeCustom:
+                {
+                    ClayCustomRenderData data = command.renderData.custom;
+                    if (ShouldInvokeCustom(data))
+                    {
+                        onCustom?.Invoke(data, box);
+                    }
+
+                    break;
+                }
                 case ClayRenderCommandType.ClayRenderCommandTypeOverlayColorStart:
+                {
+                    overlayStack.Add((command.renderData.overlayColor.color, null));
+                    break;
+                }
                 case ClayRenderCommandType.ClayRenderCommandTypeOverlayColorEnd:
+                {
+                    if (overlayStack.Count > 0)
+                    {
+                        int top = overlayStack.Count - 1;
+                        (ClayColor color, ClayBoundingBox? bounds) = overlayStack[top];
+                        overlayStack.RemoveAt(top);
+
+                        if (bounds is { } b)
+                        {
+                            global::Raylib_cs.Raylib.DrawRectangleRec(new Rectangle(b.x, b.y, b.width, b.height), ToRaylibColor(color));
+
+                            // Fold this now-closed level's box into its parent (if any), so a parent
+                            // overlay also covers whatever its overlaid child just covered.
+                            if (overlayStack.Count > 0)
+                            {
+                                int parent = overlayStack.Count - 1;
+                                overlayStack[parent] = (overlayStack[parent].Color, UnionBoundingBox(overlayStack[parent].Bounds, b));
+                            }
+                        }
+                    }
+
+                    break;
+                }
                 case ClayRenderCommandType.ClayRenderCommandTypeNone:
-                    // Not wired up yet - image/custom rendering need an app-defined asset lookup, and
-                    // color-overlay needs a shader pass. Left as a hook point for consumers to extend.
                     break;
             }
         }
@@ -237,4 +310,42 @@ public static class ClayRaylibRenderer
         (byte)Math.Clamp(color.g, 0, 255),
         (byte)Math.Clamp(color.b, 0, 255),
         (byte)Math.Clamp(color.a, 0, 255));
+
+    /// <summary>
+    /// An all-zero backgroundColor on an image render command means "untinted" per clay.h's own doc
+    /// comment (0,0,0,0 is indistinguishable from "not set"), so it maps to opaque white (draw the
+    /// texture's own colors unchanged) rather than fully transparent/invisible.
+    /// </summary>
+    internal static Color ResolveImageTint(ClayColor backgroundColor) =>
+        backgroundColor is { r: 0, g: 0, b: 0, a: 0 } ? Color.White : ToRaylibColor(backgroundColor);
+
+    /// <summary>Mirrors upstream's own null-check before dereferencing a CUSTOM command's opaque data pointer.</summary>
+    internal static bool ShouldInvokeCustom(ClayCustomRenderData data) => data.customData != IntPtr.Zero;
+
+    /// <summary>
+    /// Returns the smallest box containing both <paramref name="accumulated"/> (if any) and
+    /// <paramref name="box"/>, ignoring <paramref name="box"/> entirely if it's zero-sized (which is what
+    /// every OVERLAY_COLOR_START/END command's own boundingBox looks like, since clay.h doesn't populate
+    /// it for those two command types - see ClayRaylibRenderer's Render loop for how this is used to
+    /// approximate an overlaid element's true bounds from everything actually drawn inside it instead).
+    /// Pure geometry - does not touch raylib.
+    /// </summary>
+    internal static ClayBoundingBox? UnionBoundingBox(ClayBoundingBox? accumulated, ClayBoundingBox box)
+    {
+        if (box.width <= 0 || box.height <= 0)
+        {
+            return accumulated;
+        }
+
+        if (accumulated is not { } a)
+        {
+            return box;
+        }
+
+        float minX = MathF.Min(a.x, box.x);
+        float minY = MathF.Min(a.y, box.y);
+        float maxX = MathF.Max(a.x + a.width, box.x + box.width);
+        float maxY = MathF.Max(a.y + a.height, box.y + box.height);
+        return new ClayBoundingBox { x = minX, y = minY, width = maxX - minX, height = maxY - minY };
+    }
 }

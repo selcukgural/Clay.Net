@@ -89,9 +89,9 @@ while (!window.ShouldClose)
                                {
                                    sizing = new ClaySizing { width = ClaySizingAxis.Fixed(60), height = ClaySizingAxis.Fixed(60) },
                                },
-                               // Upstream sets `.image = { .imageData = &profilePicture }` here - image
-                               // render commands aren't wired up in ClayRaylibRenderer yet (see README's
-                               // Status section), so this stays a plain colored placeholder for now.
+                               // Upstream sets `.image = { .imageData = &profilePicture }` here - Clay.Net
+                               // supports image rendering now too (see ClayRaylibWindow.LoadTexture), but
+                               // this sample keeps a plain colored placeholder to avoid bundling an image asset.
                                backgroundColor = ClayHelpers.CreateColor(180, 180, 180),
                                cornerRadius = ClayHelpers.CreateCornerRadius(30),
                            }))
