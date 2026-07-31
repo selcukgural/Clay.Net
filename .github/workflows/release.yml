@@ -89,6 +89,10 @@ jobs:
     name: pack & publish
     needs: [test, build-native]
     runs-on: ubuntu-latest
+    # Must match the "Environment" set on the nuget.org Trusted Publishing policy exactly - nuget.org
+    # checks it against the `environment` claim in the OIDC token, and rejects the exchange if the
+    # policy specifies one but the token doesn't carry it (or carries a different one).
+    environment: production
     # id-token: write lets this job request a GitHub OIDC token, which NuGet/login exchanges for a
     # short-lived (1 hour) nuget.org API key - see https://learn.microsoft.com/nuget/nuget-org/trusted-publishing.
     # Setting an explicit permissions block also drops every other default token permission, so
